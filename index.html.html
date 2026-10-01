@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Silence: Demon Realm</title>
+
+<style>
+body{
+    margin:0;
+    overflow:hidden;
+    background:black;
+    font-family:Arial;
+    color:white;
+    text-align:center;
+}
+
+/* RULES SCREEN */
+#rulesScreen{
+    position:fixed;
+    width:100%;
+    height:100%;
+    background:black;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    align-items:center;
+    z-index:2000;
+}
+
+#rulesScreen h1{ font-size:40px; margin-bottom:20px; }
+#rulesScreen p{ max-width:600px; margin:10px; font-size:18px; }
+#rulesScreen button{
+    padding:10px 25px;
+    font-size:20px;
+    margin-top:20px;
+    cursor:pointer;
+}
+
+/* GAME UI */
+#game{
+    perspective:800px;
+    width:100vw;
+    height:100vh;
+    position:relative;
+}
+
+#arena{
+    width:900px;
+    height:900px;
+    background:radial-gradient(circle,#111 20%,black 70%);
+    position:absolute;
+    top:50%;
+    left:50%;
+    transform:translate(-50%,-50%) rotateX(60deg);
+    border-radius:50%;
+}
+
+.hero{
+    width:30px;
+    height:30px;
+    background:white;
+    position:absolute;
+    border-radius:50%;
+}
+
+.demon{
+    width:40px;
+    height:40px;
+    position:absolute;
+    border-radius:50%;
+    background:radial-gradient(circle,#400 20%,#000 70%);
+    box-shadow:0 0 25px red, 0 0 50px darkred;
+    animation:pulse 1.5s infinite alternate;
+    transition:opacity 0.5s;
+}
+
+.demon::before,.demon::after{
+    content:"";
+    position:absolute;
+    width:6px;height:6px;
+    background:white;
+    border-radius:50%;
+    top:12px;
+}
+.demon::before{ left:10px; }
+.demon::after{ right:10px; }
+
+@keyframes pulse{
+    from{ transform:scale(1); }
+    to{ transform:scale(1.2); }
+}
+
+.safeZone{
+    position:absolute;
+    border-radius:50%;
+    border:3px solid cyan;
+    box-shadow:0 0 30px cyan;
+    background:rgba(0,255,255,0.15);
+}
+
+#ui{
+    position:absolute;
+    top:10px;
+    width:100%;
+    display:flex;
+    justify-content:space-around;
+}
+
+#message{
+    position:absolute;
+    top:45%;
+    width:100%;
+    font-size:30px;
+}
+</style>
+</head>
+
+<body>
+
+<!-- RULES -->
+<div id="rulesScreen">
+    <h1>SILENCE: DEMON REALM</h1>
+    <p>Move using arrow keys.</p>
+    <p>Every movement increases chaos.</p>
+    <p>If chaos reaches maximum, you lose.</p>
+    <p>Red demons chase you.</p>
+    <p>Glowing cyan pockets protect you temporarily.</p>
+    <p>Survive 90 seconds to win.</p>
+    <button onclick="startGame()">OK</button>
+</div>
+
+<div id="game" style="display:none;">
+    <div id="arena"></div>
+</div>
+
+<div id="ui" style="display:none;">
+    <div>Time: <span id="timer">90</span>s</div>
+    <div>Chaos: <span id="chaosText">0</span>%</div>
+    <div>Points: <span id="points">0</span></div>
+</div>
+
+<div id="message"></div>
+
+<script>
+
+let gameStarted=false;
+let hero,heroX,heroY;
+let demons=[],safeZones=[];
+let chaos=0,maxChaos=100;
+let gameDuration=90000;
+let startTime;
+let points=0;
+let gameOver=false;
+
+function startGame(){
+    document.getElementById("rulesScreen").style.display="none";
+    document.getElementById("game").style.display="block";
+    document.getElementById("ui").style.display="flex";
+
+    gameStarted=true;
+    startTime=Date.now();
+
+    hero=document.createElement("div");
+    hero.className="hero";
+    document.getElementById("game").appendChild(hero);
+
+    heroX=window.innerWidth/2;
+    heroY=window.innerHeight/2;
+    hero.style.left=heroX+"px";
+    hero.style.top=heroY+"px";
+
+    setInterval(spawnDemon,4000);
+    setInterval(spawnSafeZone,8000);
+
+    update();
+}
+
+function spawnDemon(){
+    if(gameOver) return;
+    let demon=document.createElement("div");
+    demon.className="demon";
+    demon.style.opacity="0";
+    document.getElementById("game").appendChild(demon);
+
+    let x=Math.random()*window.innerWidth;
+    let y=Math.random()*window.innerHeight;
+
+    demon.style.left=x+"px";
+    demon.style.top=y+"px";
+    setTimeout(()=>{demon.style.opacity="1";},200);
+
+    demons.push({el:demon,x:x,y:y});
+}
+
+function spawnSafeZone(){
+    if(gameOver) return;
+    let zone=document.createElement("div");
+    zone.className="safeZone";
+
+    let size=120;
+    let x=Math.random()*(window.innerWidth-size);
+    let y=Math.random()*(window.innerHeight-size);
+
+    zone.style.width=size+"px";
+    zone.style.height=size+"px";
+    zone.style.left=x+"px";
+    zone.style.top=y+"px";
+
+    document.getElementById("game").appendChild(zone);
+
+    let zoneObj={el:zone,x:x+size/2,y:y+size/2,radius:size/2};
+    safeZones.push(zoneObj);
+
+    setTimeout(()=>{
+        zone.remove();
+        safeZones=safeZones.filter(z=>z!==zoneObj);
+    },6000);
+}
+
+document.addEventListener("keydown",e=>{
+    if(!gameStarted||gameOver) return;
+    let speed=20;
+    if(e.key==="ArrowUp") heroY-=speed;
+    if(e.key==="ArrowDown") heroY+=speed;
+    if(e.key==="ArrowLeft") heroX-=speed;
+    if(e.key==="ArrowRight") heroX+=speed;
+    chaos+=2;
+    hero.style.left=heroX+"px";
+    hero.style.top=heroY+"px";
+});
+
+function isSafe(){
+    for(let z of safeZones){
+        let dx=heroX-z.x;
+        let dy=heroY-z.y;
+        if(Math.sqrt(dx*dx+dy*dy)<z.radius) return true;
+    }
+    return false;
+}
+
+function update(){
+if(!gameStarted||gameOver) return;
+
+let elapsed=Date.now()-startTime;
+let remaining=Math.max(0,90-Math.floor(elapsed/1000));
+
+document.getElementById("timer").innerText=remaining;
+document.getElementById("chaosText").innerText=Math.floor(chaos);
+points=Math.floor(elapsed/1000);
+document.getElementById("points").innerText=points;
+
+chaos-=0.15;
+if(chaos<0) chaos=0;
+
+document.body.style.background="rgb("+(chaos*2)+",0,0)";
+
+demons.forEach(d=>{
+    let dx=heroX-d.x;
+    let dy=heroY-d.y;
+    let dist=Math.sqrt(dx*dx+dy*dy);
+    d.x+=dx/dist*1.5;
+    d.y+=dy/dist*1.5;
+    d.el.style.left=d.x+"px";
+    d.el.style.top=d.y+"px";
+
+    if(dist<20 && !isSafe()){
+        endGame("The demons consumed you.");
+    }
+});
+
+if(chaos>=maxChaos){
+    endGame("Chaos overwhelmed your mind.");
+}
+
+if(elapsed>=gameDuration){
+    endGame("You mastered silence.");
+}
+
+requestAnimationFrame(update);
+}
+
+function endGame(text){
+    gameOver=true;
+    document.getElementById("message").innerHTML=
+    text+"<br><br>Final Points: "+points;
+}
+
+</script>
+
+</body>
+</html>
